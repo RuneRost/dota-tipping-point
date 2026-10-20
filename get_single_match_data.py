@@ -143,6 +143,7 @@ def get_single_match_data(match_id=8977382530, time=0):
 
     print(f"Timesteps: {timesteps} \n")
 
+
     direKills = np.array([np.sum(np.array(playerdata['data']['match']['direKills'], dtype=int)[:5*t + 1]) for t in range(timesteps)])
     radiantKills = np.array([np.sum(np.array(playerdata['data']['match']['radiantKills'], dtype=int)[:5*t + 1]) for t in range(timesteps)])
     radiantNetworthLeads = np.array(playerdata['data']['match']['radiantNetworthLeads'], dtype=int)[1::5]
@@ -239,7 +240,7 @@ def get_single_match_data(match_id=8977382530, time=0):
 
 
 if __name__ == "__main__":
-    get_single_match_data(match_id=8977382530, time=5)  
+    get_single_match_data(match_id=9051673110, time=5)  
 
 
 

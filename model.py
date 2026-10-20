@@ -108,13 +108,13 @@ class Model(eqx.Module):
         playerdata = jax.vmap(self.player_mlp, in_axes=0)(playerdata) 
         # check for dims 10, ...
 
-        # hier jetzt radiant_transformer auf playerdata[:5] und dire_transformer auf playerdata[5:] anwenden (gucken, das rasdiant wirklich erste 5)
+        # hier jetzt transformer auf playerdata[:5] und transformer auf playerdata[5:] anwenden (gucken, das rasdiant wirklich erste 5) !! jeweils gleicher transformer der angewendet wird (aber halt einmal auf team radiant und einmal auf team dire!!)
         # -> gucken, dass dabei der input wirklich 5 verschiedene vektoren sind (die dann vom transformer embedded werden) und nicht nur eine flattete sequenz weil wir wollen ja vorallem attention zwischen den spielern und nicht zwischen jedem element (nochmal überlegen, ob das so richtig wenn ich mich wieder richtig mit transformern auseinandergesetzt habe)
+        # nur 2 self-attention blöcke und nicht mehr (vllt sogar nur einer weil aktuell nicht so viele daten)
 
         # dann match_mlp auf die reste von x, also x[C:] wo C halt den Punkt angibt wo playerdaten aufhören (daten angucken, vllt sind es auch die ersten einträge)
 
-                                  
-
+        # am ende sigma-fkt anwenden s.d. output zwischen 0 und 1 (und dann nochmal schauen wie man für classification trainiert) - bei inference einfach gucken ob >/< als 0.5
 
 
     
