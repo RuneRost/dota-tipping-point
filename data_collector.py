@@ -263,6 +263,7 @@ class Data_Collector:
 
 
     def get_match_ids(self, num_matches=100):
+        """Extract all match ids from my num_matches recent games."""
         all_matches = []
         take = 50
         skip = 0
@@ -318,6 +319,7 @@ class Data_Collector:
         return dataset
 
     def store_dataset(self, dataset):
+        """Store a dataset as a csv file."""
         # gucken, dass ich es als numpy file oder als csv store
         dataset_for_storing = [[x for sublist in group for x in sublist]for group in dataset]
         df = pd.DataFrame(dataset_for_storing,
@@ -338,8 +340,45 @@ class Data_Collector:
 
 
     def preprocess_dataset(self):
+        """Preprocess a dataset from storage."""
         # erst daten kontrollieren bevor pp anwenden
-        pass # dran denken, dass nicht alle features pp werden sollen
+
+        
+        stored_dataset = ... # hier code zum laden der csv
+
+        # hier jetzt shufflen
+
+
+        needs_preprocessing = [[0, 0, 0, 0, 0, 0, 
+                               1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               0, 1, 1, 1, 1, 1, 1, 1, 
+                               ]] # aktuell diese shape damit broadcasting funktioniert - nochmal gucken wie das genau bei lsiten ist
+        train_to_preprocess = np.array(stored_dataset[needs_preprocessing])
+
+        mu_1 = np.mean(train_to_preprocess[:4], axis=1)
+        sigma_1 = np.std(train_to_preprocess[:4], axis=1)
+        mu_2 = np.mean(train_to_preprocess[4:].reshape(train_to_preprocess.shape[0], 10 * train_to_preprocess.shape[0]), axis=1)
+        sigma_2 = np.std(train_to_preprocess[4:].reshape(train_to_preprocess.shape[0], 10 * train_to_preprocess.shape[0]), axis=1)
+        mu_2 = np.repeat(mu_2, 9)
+        sigma_2 = np.repeat(sigma_2, 9)
+
+        self.mu = np.concatenate((mu_1, mu_2))
+        self.sigma = np.concatenate((sigma_1, sigma_2))
+
+        train_data = (train_to_preprocess - self.mu[np.newaxis,:]) / self.sigma[np.newaxis,:]
+        # jetzt restliche sachen wieder vorne dran packen
+
+        # jetzt noch val und test auch sachen rausmachen mit "needs_preprocessing", dann mit mu und sigma preprocessen und dann den rest wieder vornedran
+        
 
         # start with train/val/test split (random shuffle before)
         # normalize nothing in game_identification and game_winner (exccept converting from bool to 0 and 1)
@@ -390,6 +429,7 @@ if __name__ == "__main__":
     data_collector.get_match_ids(num_matches=50)
     dataset = data_collector.create_dataset_time(time=0)
     data_collector.store_dataset(dataset)
+    # hier dann als nächstes pp
 
     # ->  gucken, ob matchstats wirklich bei so vielen fehlen, weil direKills etc eig bei vielen da - genauer untersuchen (wenn es nur an einer Sache scheitert lassen wir die halt raus)
     # -> noch fuer min 5 bis 40 validieren
