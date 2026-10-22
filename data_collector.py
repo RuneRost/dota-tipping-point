@@ -1,10 +1,14 @@
 import ast
 import csv
-import numpy as np
-import requests
+import time
 from datetime import datetime, timezone
-from tqdm import tqdm
+
+import numpy as np
 import pandas as pd
+import requests
+from tqdm import tqdm
+
+
 
 
 class Data_Collector:
@@ -137,7 +141,7 @@ class Data_Collector:
 
         # check if matchdata is accessible (again this does not mean data cannot be None)
         try:
-            _ = playerdata['data']
+            _ = playerdata['data']['match']
         except KeyError:
             self.num_unaccessible_matches += 1
             return [0]
@@ -302,7 +306,8 @@ class Data_Collector:
             if len(all_matches) %(num_matches//4) == 0:
                 print(f"{len(all_matches)} Matches in total.")
 
-        self.match_ids = [match["id"] for match in all_matches]
+
+        self.match_ids = [match["id"] for match in all_matches if match["id"] is not None]
 
         print("Newest Match-ID:", self.match_ids[0], "Date:", datetime.fromtimestamp(all_matches[0]["startDateTime"], tz=timezone.utc))
         print("Oldest Match-ID:", self.match_ids[-1], "Date:", datetime.fromtimestamp(all_matches[-1]["startDateTime"], tz=timezone.utc))
@@ -341,49 +346,73 @@ class Data_Collector:
 
     def preprocess_dataset(self):
         """Preprocess a dataset from storage."""
-        # erst daten kontrollieren bevor pp anwenden
+        # DATEN NOCH KONTROLLIEREN WEIL NACH DEM PP NATÜRLICH NICHTS MEHR ERKENNBAR
+        with open("dataset.csv", "r", encoding="utf-8", newline="") as file:
+            reader = csv.reader(file)
+            next(reader)
+            stored_dataset = list(reader)
 
+        # bringing data into numpy compatible format
+        stored_dataset = [ [ 1 if value == "True" else 0 if value == "False" else value for value in row] for row in stored_dataset ]
+        stored_dataset = [ [ 1 if value == "ALL_PICK_RANKED" else value for value in row] for row in stored_dataset ]
+        stored_dataset = [ [ int(value) for value in row] for row in stored_dataset ]
+        stored_dataset = np.array(stored_dataset, dtype=np.float32)
+
+        # shuffling the data
+        rng = np.random.default_rng(seed=42)
+        indices = rng.permutation(len(stored_dataset))
+        stored_dataset = stored_dataset[indices]
+        n = len(stored_dataset)
+        train_set = stored_dataset[:int(0.85 * n)]
+        val_set = stored_dataset[int(0.85 * n):int(0.9 * n)]
+        test_set = stored_dataset[int(0.9 * n):]
+
+        # masking out data that doesn't need preprocessing
+        needs_preprocessing = np.array([0, 0, 0, 0, 0, 0, 
+                                         1, 1, 1, 1, 
+                                         0, 1, 1, 1, 1, 1, 1, 1, 
+                                         0, 1, 1, 1, 1, 1, 1, 1, 
+                                         0, 1, 1, 1, 1, 1, 1, 1, 
+                                         0, 1, 1, 1, 1, 1, 1, 1,  
+                                         0, 1, 1, 1, 1, 1, 1, 1, 
+                                         0, 1, 1, 1, 1, 1, 1, 1,
+                                         0, 1, 1, 1, 1, 1, 1, 1,
+                                         0, 1, 1, 1, 1, 1, 1, 1, 
+                                         0, 1, 1, 1, 1, 1, 1, 1,
+                                         0, 1, 1, 1, 1, 1, 1, 1,
+                                         ]) 
         
-        stored_dataset = ... # hier code zum laden der csv
-
-        # hier jetzt shufflen
-
-
-        needs_preprocessing = [[0, 0, 0, 0, 0, 0, 
-                               1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               0, 1, 1, 1, 1, 1, 1, 1, 
-                               ]] # aktuell diese shape damit broadcasting funktioniert - nochmal gucken wie das genau bei lsiten ist
-        train_to_preprocess = np.array(stored_dataset[needs_preprocessing])
-
-        mu_1 = np.mean(train_to_preprocess[:4], axis=1)
-        sigma_1 = np.std(train_to_preprocess[:4], axis=1)
-        mu_2 = np.mean(train_to_preprocess[4:].reshape(train_to_preprocess.shape[0], 10 * train_to_preprocess.shape[0]), axis=1)
-        sigma_2 = np.std(train_to_preprocess[4:].reshape(train_to_preprocess.shape[0], 10 * train_to_preprocess.shape[0]), axis=1)
-        mu_2 = np.repeat(mu_2, 9)
-        sigma_2 = np.repeat(sigma_2, 9)
-
+        train_to_preprocess = train_set[:, needs_preprocessing.astype(bool)]
+        val_to_preprocess = val_set[:, needs_preprocessing.astype(bool)]
+        test_to_preprocess = test_set[:, needs_preprocessing.astype(bool)]
+        
+        mu_1 = np.mean(train_to_preprocess[:, :4], axis=0)
+        sigma_1 = np.std(train_to_preprocess[:, :4], axis=0)
+        mu_2 = np.mean(train_to_preprocess[:, 4:].reshape((-1, (train_to_preprocess.shape[1]-4)//10)), axis=0)
+        sigma_2 = np.std(train_to_preprocess[:, 4:].reshape(-1, (train_to_preprocess.shape[1]-4)//10), axis=0)
+        mu_2 = np.repeat(mu_2, 10)
+        sigma_2 = np.repeat(sigma_2, 10)
         self.mu = np.concatenate((mu_1, mu_2))
         self.sigma = np.concatenate((sigma_1, sigma_2))
-
-        train_data = (train_to_preprocess - self.mu[np.newaxis,:]) / self.sigma[np.newaxis,:]
-        # jetzt restliche sachen wieder vorne dran packen
-
-        # jetzt noch val und test auch sachen rausmachen mit "needs_preprocessing", dann mit mu und sigma preprocessen und dann den rest wieder vornedran
+        self.sigma[np.isclose(self.sigma, 0)] = 1.0
         
+        pp_train_data = (train_to_preprocess - self.mu[np.newaxis,:]) / self.sigma[np.newaxis,:]
+        full_train_data = np.zeros_like(train_set)
+        full_train_data[:, needs_preprocessing.astype(bool)] = pp_train_data
+        full_train_data[:, ~needs_preprocessing.astype(bool)] = train_set[:, ~needs_preprocessing.astype(bool)]
 
-        # start with train/val/test split (random shuffle before)
-        # normalize nothing in game_identification and game_winner (exccept converting from bool to 0 and 1)
-        # normalize everything in game stats (remember based only on training data)
-        # normalization in player over all players! not per player - dont normalize heroId, rest normalize (maybe ask AI if its worth it for lvls even)
+        pp_val_data = (val_to_preprocess - self.mu[np.newaxis,:]) / self.sigma[np.newaxis,:]
+        full_val_data = np.zeros_like(val_set)
+        full_val_data[:, needs_preprocessing.astype(bool)] = pp_val_data
+        full_val_data[:, ~needs_preprocessing.astype(bool)] = val_set[:, ~needs_preprocessing.astype(bool)]
+
+        pp_test_data = (test_to_preprocess - self.mu[np.newaxis,:]) / self.sigma[np.newaxis,:]
+        full_test_data = np.zeros_like(test_set)
+        full_test_data[:, needs_preprocessing.astype(bool)] = pp_test_data
+        full_test_data[:, ~needs_preprocessing.astype(bool)] = test_set[:, ~needs_preprocessing.astype(bool)]
+
+        return full_train_data, full_val_data, full_test_data
+
 
 
 """
@@ -429,6 +458,8 @@ if __name__ == "__main__":
     data_collector.get_match_ids(num_matches=50)
     dataset = data_collector.create_dataset_time(time=0)
     data_collector.store_dataset(dataset)
+    data_collector.preprocess_dataset()
+
     # hier dann als nächstes pp
 
     # ->  gucken, ob matchstats wirklich bei so vielen fehlen, weil direKills etc eig bei vielen da - genauer untersuchen (wenn es nur an einer Sache scheitert lassen wir die halt raus)
